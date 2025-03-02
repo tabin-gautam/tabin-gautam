@@ -1,4 +1,4 @@
-# Integration with ChatGpt Demo & Banking API 
+# Integration with ChatGpt Demo & Banking API-Dockerized
 
 ### Overview
 Demo of integrating spring boot application with chatgpt api.
@@ -18,8 +18,9 @@ Spring MVC,
 JUnit for Unit Testing,
 MockMvc for API Testing,
 H2 Database (In-memory).
-### Location of docker image
-https://hub.docker.com/repository/docker/tabinrajgautam/banking-api/general
+### Docker image 
+https://hub.docker.com/r/tabinrajgautam/banking-api  or<br>
+docker pull tabinrajgautam/banking-api
 ### Run Docker Application Command
 docker build -t banking-api .<br>
 docker tag banking-api tabinrajgautam/banking-api:1.0<br>
