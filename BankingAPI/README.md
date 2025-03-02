@@ -1,5 +1,5 @@
-# Integration with ChatGpt Demo & Banking API-Dockerized
-
+# Integration with ChatGpt Demo & Banking API-Dockerized(Monolithic Application)
+### Pending Decoupled API(Microservice) coming soon......stay tuned!!!
 ### Overview
 Demo of integrating spring boot application with chatgpt api.
 The Banking API provides endpoints to perform basic banking operations such as account creation, money transfers, balance retrieval, and viewing transaction history. This API is built using Java Spring Boot and provides a set of RESTful web services for handling banking transactions.
