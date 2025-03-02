@@ -1,6 +1,6 @@
-/*
 package com.generic.bank.bankingapi.service;
 
+import com.generic.bank.bankingapi.bankapienum.TransactionType;
 import com.generic.bank.bankingapi.model.BankAccount;
 import com.generic.bank.bankingapi.model.BankTransaction;
 import com.generic.bank.bankingapi.repository.AccountRepository;
@@ -12,16 +12,15 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.time.LocalDateTime;
-import java.util.Optional;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 class TransactionServiceImplTest {
-
-    @InjectMocks
-    private TransactionServiceImpl transactionService;
 
     @Mock
     private AccountRepository accountRepository;
@@ -29,85 +28,145 @@ class TransactionServiceImplTest {
     @Mock
     private TransactionRepository transactionRepository;
 
-    private BankAccount fromBankAccount;
-    private BankAccount toBankAccount;
+    @InjectMocks
+    private TransactionServiceImpl transactionService;
+
+    private BankAccount fromAccount;
+    private BankAccount toAccount;
+    private BankTransaction transaction;
 
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
 
-        fromBankAccount = new BankAccount();
-        fromBankAccount.setAccountId(1L);
-        fromBankAccount.setBalance(1000.0);
+        fromAccount = new BankAccount();
+        fromAccount.setAccountNumber("1234567890");
+        fromAccount.setBalance(1000.0);
 
-        toBankAccount = new BankAccount();
-        toBankAccount.setAccountId(2L);
-        toBankAccount.setBalance(500.0);
+        toAccount = new BankAccount();
+        toAccount.setAccountNumber("0987654321");
+        toAccount.setBalance(500.0);
+
+        transaction = new BankTransaction();
+        transaction.setFromAccountNumber(fromAccount.getAccountNumber());
+        transaction.setToAccountNumber(toAccount.getAccountNumber());
+        transaction.setAmount(200.0);
+        transaction.setTransactionType(TransactionType.TRANSFER.toString());
+        transaction.setTimestamp(LocalDateTime.now());
     }
 
     @Test
     void testTransfer_Success() {
-        when(accountRepository.findById(1L)).thenReturn(Optional.of(fromBankAccount));
-        when(accountRepository.findById(2L)).thenReturn(Optional.of(toBankAccount));
+        when(accountRepository.findByAccountNumber("1234567890")).thenReturn(Optional.of(fromAccount));
+        when(accountRepository.findByAccountNumber("0987654321")).thenReturn(Optional.of(toAccount));
+        when(accountRepository.save(any(BankAccount.class))).thenReturn(fromAccount).thenReturn(toAccount);
+        when(transactionRepository.save(any(BankTransaction.class))).thenReturn(transaction);
 
-        transactionService.transfer(1L, 2L, 100.0);
+        transactionService.transfer("1234567890", "0987654321", 200.0);
 
-
-        assertEquals(900.0, fromBankAccount.getBalance());
-        assertEquals(600.0, toBankAccount.getBalance());
-
-        verify(accountRepository, times(2)).save(any(BankAccount.class));
+        assertEquals(800.0, fromAccount.getBalance());
+        assertEquals(700.0, toAccount.getBalance());
+        verify(accountRepository, times(1)).save(fromAccount);
+        verify(accountRepository, times(1)).save(toAccount);
+        verify(transactionRepository, times(1)).save(any(BankTransaction.class));
     }
 
     @Test
-    void testTransfer_FromAccountNotFound() {
-        when(accountRepository.findById(1L)).thenReturn(Optional.empty());
-        when(accountRepository.findById(2L)).thenReturn(Optional.of(toBankAccount));
+    void testTransfer_AccountNotFound() {
+        when(accountRepository.findByAccountNumber(anyString())).thenReturn(Optional.empty());
 
         RuntimeException exception = assertThrows(RuntimeException.class, () -> {
-            transactionService.transfer(1L, 2L, 100.0);
+            transactionService.transfer("1234567890", "0987654321", 200.0);
         });
+
         assertEquals("From account not found", exception.getMessage());
-    }
-
-    @Test
-    void testTransfer_ToAccountNotFound() {
-        when(accountRepository.findById(1L)).thenReturn(Optional.of(fromBankAccount));
-        when(accountRepository.findById(2L)).thenReturn(Optional.empty());
-
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
-            transactionService.transfer(1L, 2L, 100.0);
-        });
-        assertEquals("To account not found", exception.getMessage());
+        verify(accountRepository, times(1)).findByAccountNumber("1234567890");
+        verify(accountRepository, times(0)).findByAccountNumber("0987654321");
+        verify(transactionRepository, times(0)).save(any(BankTransaction.class));
     }
 
     @Test
     void testTransfer_InsufficientFunds() {
-        // Arrange
-        when(accountRepository.findById(1L)).thenReturn(Optional.of(fromBankAccount));
-        when(accountRepository.findById(2L)).thenReturn(Optional.of(toBankAccount));
+        when(accountRepository.findByAccountNumber("1234567890")).thenReturn(Optional.of(fromAccount));
+        when(accountRepository.findByAccountNumber("0987654321")).thenReturn(Optional.of(toAccount));
 
-        // Act & Assert
         RuntimeException exception = assertThrows(RuntimeException.class, () -> {
-            transactionService.transfer(1L, 2L, 2000.0);
+            transactionService.transfer("1234567890", "0987654321", 1500.0);
         });
+
         assertEquals("Insufficient funds", exception.getMessage());
+        verify(accountRepository, times(1)).findByAccountNumber("1234567890");
+        verify(accountRepository, times(1)).findByAccountNumber("0987654321");
+        verify(transactionRepository, times(0)).save(any(BankTransaction.class));
     }
 
     @Test
-    void testGetTransactionHistory() {
-        BankTransaction transaction = new BankTransaction();
-        transaction.setFromAccountId(1L);
-        transaction.setToAccountId(2L);
-        transaction.setAmount(100.0);
-        transaction.setTimestamp(LocalDateTime.now());
-        when(transactionRepository.findAll()).thenReturn(List.of(transaction));
+    void testGetTransactionHistory_Success() {
+        when(accountRepository.findByAccountNumber("1234567890")).thenReturn(Optional.of(fromAccount));
+        when(transactionRepository.findByAccountNumber("1234567890")).thenReturn(List.of(transaction));
 
-        List<BankTransaction> transactions = transactionService.getTransactionHistory(1L);
+        var history = transactionService.getTransactionHistory("1234567890");
 
-        assertEquals(1, transactions.size());
-        assertEquals(1L, transactions.get(0).getFromAccountId());
-        assertEquals(2L, transactions.get(0).getToAccountId());
+        assertNotNull(history);
+        assertFalse(history.isEmpty());
+        assertEquals(1, history.size());
+        assertEquals("1234567890", history.get(0).getFromAccountNumber());
+        verify(transactionRepository, times(1)).findByAccountNumber("1234567890");
+    }
+
+    @Test
+    void testGetTransactionHistory_AccountNotFound() {
+        when(accountRepository.findByAccountNumber(anyString())).thenReturn(Optional.empty());
+
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+            transactionService.getTransactionHistory("1234567890");
+        });
+
+        assertEquals("account not found", exception.getMessage());
+        verify(accountRepository, times(1)).findByAccountNumber("1234567890");
+        verify(transactionRepository, times(0)).findByAccountNumber(anyString());
+    }
+
+    @Test
+    void testDeposit_Success() {
+        when(accountRepository.findByAccountNumber(anyString())).thenReturn(Optional.of(fromAccount));
+        when(accountRepository.save(any(BankAccount.class))).thenReturn(fromAccount);
+        transaction.setTransactionType("DEPOSIT");
+        when(transactionRepository.save(any(BankTransaction.class))).thenReturn(transaction);
+
+        BankTransaction result = transactionService.deposit("1234567890", 500.0);
+
+        assertEquals(1500.0, fromAccount.getBalance());
+        assertEquals("DEPOSIT", result.getTransactionType());
+        verify(accountRepository, times(1)).save(any(BankAccount.class));
+        verify(transactionRepository, times(1)).save(any(BankTransaction.class));
+    }
+
+    @Test
+    void testWithdraw_Success() {
+        when(accountRepository.findByAccountNumber(anyString())).thenReturn(Optional.of(fromAccount));
+        when(accountRepository.save(any(BankAccount.class))).thenReturn(fromAccount);
+        transaction.setTransactionType("WITHDRAWAL");
+        when(transactionRepository.save(any(BankTransaction.class))).thenReturn(transaction);
+
+        BankTransaction result = transactionService.withdraw("1234567890", 500.0);
+
+        assertEquals(500.0, fromAccount.getBalance());
+        assertEquals("WITHDRAWAL", result.getTransactionType());
+        verify(accountRepository, times(1)).save(any(BankAccount.class));
+        verify(transactionRepository, times(1)).save(any(BankTransaction.class));
+    }
+
+    @Test
+    void testWithdraw_InsufficientFunds() {
+        when(accountRepository.findByAccountNumber("1234567890")).thenReturn(Optional.of(fromAccount));
+
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+            transactionService.withdraw("1234567890", 1500.0);
+        });
+
+        assertEquals("Insufficient funds", exception.getMessage());
+        verify(accountRepository, times(1)).findByAccountNumber("1234567890");
+        verify(transactionRepository, times(0)).save(any(BankTransaction.class));
     }
 }
-*/

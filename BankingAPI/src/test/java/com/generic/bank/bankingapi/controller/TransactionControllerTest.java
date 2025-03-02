@@ -1,151 +1,134 @@
-/*
 package com.generic.bank.bankingapi.controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.generic.bank.bankingapi.dto.TransferRequest;
 import com.generic.bank.bankingapi.model.BankTransaction;
 import com.generic.bank.bankingapi.service.TransactionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.test.web.servlet.MockMvc;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
+import org.springframework.http.ResponseEntity;
 
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.springframework.http.HttpStatus.*;
 
-@WebMvcTest(TransactionController.class)
-@ExtendWith(MockitoExtension.class)
-public class TransactionControllerTest {
+class TransactionControllerTest {
 
-    @Autowired
-    private MockMvc mockMvc;
-
-
-    @MockitoBean
+    @Mock
     private TransactionService transactionService;
 
     @InjectMocks
     private TransactionController transactionController;
 
-    private BankTransaction transaction;
-
-    private ObjectMapper objectMapper;
-
-
     @BeforeEach
     void setUp() {
-        objectMapper = new ObjectMapper();
-
-        transaction = new BankTransaction();
-        transaction.setTransactionId(1L);
-        transaction.setFromAccountId(1L);
-        transaction.setToAccountId(2L);
-        transaction.setAmount(300.0);
+        MockitoAnnotations.openMocks(this);
     }
 
     @Test
-    void testTransfer_success() throws Exception {
-        TransferRequest request = new TransferRequest(1L, 2L, 300.0);
-        doNothing().when(transactionService).transfer(1L, 2L, 300.0);
-        mockMvc.perform(post("/transactions/transfer")
-                        .contentType("application/json")
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
-                .andExpect(content().string("Transfer successful"));
+    void transfer_Success() {
+        TransferRequest request = new TransferRequest("12345", "67890", 100.0);
+        doNothing().when(transactionService).transfer("12345", "67890", 100.0);
+
+        ResponseEntity<String> response = transactionController.transfer(request);
+
+        assertEquals(OK, response.getStatusCode());
+        assertEquals("Transfer successful", response.getBody());
     }
 
     @Test
-    void testTransfer_invalidAmount() throws Exception {
-        TransferRequest request = new TransferRequest(1L, 2L, -1000.0);
+    void transfer_NegativeAmount() {
+        TransferRequest request = new TransferRequest("12345", "67890", -50.0);
 
-        mockMvc.perform(post("/transactions/transfer")
-                        .contentType("application/json")
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isBadRequest())
-                .andExpect(content().string("Transfer Amount must be positive"));
+        ResponseEntity<String> response = transactionController.transfer(request);
+
+        assertEquals(BAD_REQUEST, response.getStatusCode());
+        assertEquals("Transfer Amount must be positive", response.getBody());
     }
 
     @Test
-    void testTransfer_fromAccountNotFound() throws Exception {
-        TransferRequest request = new TransferRequest(20L, 30L, 100.0);
+    void transfer_Failed() {
+        TransferRequest request = new TransferRequest("12345", "67890", 100.0);
+        doThrow(new RuntimeException("Insufficient funds"))
+                .when(transactionService).transfer("12345", "67890", 100.0);
 
-        doThrow(new RuntimeException("From account not found")).when(transactionService).transfer(anyLong(), anyLong(), anyDouble());
+        ResponseEntity<String> response = transactionController.transfer(request);
 
-        mockMvc.perform(post("/transactions/transfer")
-                        .contentType("application/json")
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isBadRequest())
-                .andExpect(content().string("Transfer Failed From account not found"));
+        assertEquals(BAD_REQUEST, response.getStatusCode());
+        assertEquals("Transfer Failed Insufficient funds", response.getBody());
     }
 
     @Test
-    void testTransfer_toAccountNotFound() throws Exception {
-        TransferRequest request = new TransferRequest(20L, 30L, 100.0);
+    void deposit_Success() {
+        BankTransaction mockTransaction = new BankTransaction();
+        mockTransaction.setAmount(200);
+        mockTransaction.setFromAccountNumber("12345");
+        mockTransaction.setToAccountNumber("23456");
+        mockTransaction.setTransactionType("WithDrawl");
+        when(transactionService.deposit("12345", 200.0)).thenReturn(mockTransaction);
 
-        doThrow(new RuntimeException("To account not found")).when(transactionService).transfer(anyLong(), anyLong(), anyDouble());
+        ResponseEntity<BankTransaction> response = transactionController.deposit("12345", 200.0);
 
-        mockMvc.perform(post("/transactions/transfer")
-                        .contentType("application/json")
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isBadRequest())
-                .andExpect(content().string("Transfer Failed To account not found"));
+        assertEquals(OK, response.getStatusCode());
+        assertEquals(mockTransaction, response.getBody());
     }
 
     @Test
-    void testTransfer_insufficientFunds() throws Exception {
-        TransferRequest request = new TransferRequest(1L, 2L, 5000.0);  // Assuming account 1 has insufficient funds
+    void withdraw_Success() {
+        BankTransaction mockTransaction = new BankTransaction();
+        mockTransaction.setAmount(200);
+        mockTransaction.setFromAccountNumber("12345");
+        mockTransaction.setToAccountNumber("23456");
+        mockTransaction.setTransactionType("WithDrawl");
+        when(transactionService.withdraw("12345", 100.0)).thenReturn(mockTransaction);
 
-        doThrow(new RuntimeException("Insufficient funds")).when(transactionService).transfer(anyLong(), anyLong(), anyDouble());
+        ResponseEntity<BankTransaction> response = transactionController.withdraw("12345", 100.0);
 
-        mockMvc.perform(post("/transactions/transfer")
-                        .contentType("application/json")
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isBadRequest())
-                .andExpect(content().string("Transfer Failed Insufficient funds"));
+        assertEquals(OK, response.getStatusCode());
+        assertEquals(mockTransaction, response.getBody());
     }
 
     @Test
-    void testGetTransactionHistory_success() throws Exception {
-        List<BankTransaction> transactions = Arrays.asList(transaction);
-        when(transactionService.getTransactionHistory(1L)).thenReturn(transactions);
+    void getTransactionHistory_Success() {
+        BankTransaction mockTransaction = new BankTransaction();
+        mockTransaction.setAmount(200);
+        mockTransaction.setFromAccountNumber("12345");
+        mockTransaction.setToAccountNumber("23456");
+        mockTransaction.setTransactionType("WithDrawl");
 
-        mockMvc.perform(get("/transactions/1/history"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.size()").value(1))
-                .andExpect(jsonPath("$[0].transactionId").value(1))
-                .andExpect(jsonPath("$[0].fromAccountId").value(1))
-                .andExpect(jsonPath("$[0].toAccountId").value(2))
-                .andExpect(jsonPath("$[0].amount").value(300.0));
+        BankTransaction mockTransaction1 = new BankTransaction();
+        mockTransaction.setAmount(500);
+        mockTransaction.setFromAccountNumber("12345");
+        mockTransaction.setTransactionType("Deposit");
+        List<BankTransaction> mockTransactions = List.of(
+               mockTransaction1, mockTransaction
+        );
+        when(transactionService.getTransactionHistory("12345")).thenReturn(mockTransactions);
+
+        ResponseEntity<?> response = transactionController.getTransactionHistory("12345");
+
+        assertEquals(OK, response.getStatusCode());
+        assertEquals(mockTransactions, response.getBody());
     }
 
     @Test
-    void testGetTransactionHistory_invalidAccountIdNegative() throws Exception {
+    void getTransactionHistory_AccountNotFound() {
+        when(transactionService.getTransactionHistory("12345")).thenReturn(List.of());
 
-        mockMvc.perform(get("/transactions/-1/history"))
-                .andExpect(status().isBadRequest())
-                .andExpect(content().string("Invalid Account Id"));
+        ResponseEntity<?> response = transactionController.getTransactionHistory("12345");
+
+        assertEquals(NOT_FOUND, response.getStatusCode());
     }
 
-
     @Test
-    void testGetTransactionHistory_NoTransactions() throws Exception {
-        when(transactionService.getTransactionHistory(9L)).thenReturn(Collections.emptyList());
+    void getTransactionHistory_InvalidAccountNumber() {
+        ResponseEntity<?> response = transactionController.getTransactionHistory("");
 
-        mockMvc.perform(get("/transactions/9/history"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.size()").value(0));
+        assertEquals(BAD_REQUEST, response.getStatusCode());
+        assertEquals("Invalid Account Number", response.getBody());
     }
 }
-
-*/

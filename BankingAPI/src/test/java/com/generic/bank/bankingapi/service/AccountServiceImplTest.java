@@ -1,4 +1,3 @@
-/*
 package com.generic.bank.bankingapi.service;
 
 import com.generic.bank.bankingapi.model.BankAccount;
@@ -7,21 +6,21 @@ import com.generic.bank.bankingapi.repository.AccountRepository;
 import com.generic.bank.bankingapi.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
-import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.*;
 
-@ExtendWith(MockitoExtension.class)
-public class AccountServiceImplTest {
+class AccountServiceImplTest {
 
     @Mock
     private AccountRepository accountRepository;
@@ -32,87 +31,97 @@ public class AccountServiceImplTest {
     @InjectMocks
     private AccountServiceImpl accountService;
 
-    private BankUser testUser;
-    private BankAccount testAccount;
+    private BankUser user;
+    private BankAccount bankAccount;
 
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        testUser = new BankUser();
-        testUser.setUserId(1L);
-        testUser.setUsername("Santiago Bernabou");
+        user = new BankUser();
+        user.setUserId(1L);
+        user.setName("John Doe");
 
-        testAccount = new BankAccount();
-        testAccount.setAccountId(1L);
-        testAccount.setUser(testUser);
-        testAccount.setBalance(5000.0);
+        bankAccount = new BankAccount();
+        bankAccount.setAccountNumber("1234567890");
+        bankAccount.setBalance(500.0);
+        bankAccount.setUser(user);
     }
 
     @Test
     void testCreateAccount_Success() {
-        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
-        when(accountRepository.save(any(BankAccount.class))).thenReturn(testAccount);
+        when(userRepository.findById(anyLong())).thenReturn(Optional.of(user));
+        bankAccount.setAccountType("SAVING");
+        when(accountRepository.save(any(BankAccount.class))).thenReturn(bankAccount);
 
-        BankAccount createdAccount = accountService.createAccount(1L, 5000.0);
+        BankAccount createdAccount = accountService.createAccount(1L, 500.0, "SAVINGS");
 
         assertNotNull(createdAccount);
-        assertEquals(testUser, createdAccount.getUser());
-        assertEquals(5000.0, createdAccount.getBalance());
+        assertEquals("1234567890", createdAccount.getAccountNumber());
+        assertEquals(500.0, createdAccount.getBalance());
+        assertEquals("SAVING", createdAccount.getAccountType());
+
+        verify(userRepository, times(1)).findById(anyLong());
+        verify(accountRepository, times(1)).save(any(BankAccount.class));
     }
 
     @Test
     void testCreateAccount_UserNotFound() {
-        when(userRepository.findById(20L)).thenReturn(Optional.empty());
+        when(userRepository.findById(anyLong())).thenReturn(Optional.empty());
 
-        Exception exception = assertThrows(RuntimeException.class, () -> {
-            accountService.createAccount(20L, 500.0);
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+            accountService.createAccount(1L, 500.0, "SAVINGS");
         });
 
         assertEquals("User not found", exception.getMessage());
+        verify(userRepository, times(1)).findById(anyLong());
+        verify(accountRepository, times(0)).save(any(BankAccount.class));
     }
 
     @Test
     void testGetBalance_Success() {
-        when(accountRepository.findById(1L)).thenReturn(Optional.of(testAccount));
+        when(accountRepository.findByAccountNumber(anyString())).thenReturn(Optional.of(bankAccount));
 
-        double balance = accountService.getBalance(1L);
+        double balance = accountService.getBalance("1234567890");
 
-        assertEquals(5000.0, balance);
+        assertEquals(500.0, balance);
+        verify(accountRepository, times(1)).findByAccountNumber(anyString());
     }
 
     @Test
     void testGetBalance_AccountNotFound() {
-        when(accountRepository.findById(20L)).thenReturn(Optional.empty());
+        when(accountRepository.findByAccountNumber(anyString())).thenReturn(Optional.empty());
 
-        Exception exception = assertThrows(RuntimeException.class, () -> {
-            accountService.getBalance(20L);
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+            accountService.getBalance("1234567890");
         });
 
         assertEquals("Account not found", exception.getMessage());
+        verify(accountRepository, times(1)).findByAccountNumber(anyString());
     }
 
     @Test
     void testGetUserAccounts_Success() {
-        List<BankAccount> accounts = Arrays.asList(testAccount);
-        when(accountRepository.findByBankUserId(1L)).thenReturn(Optional.of(accounts));
+        when(accountRepository.findByBankUserId(anyLong())).thenReturn(Optional.of(List.of(bankAccount)));
 
-        List<BankAccount> retrievedAccounts = accountService.getUserAccounts(1L);
+        var accounts = accountService.getUserAccounts(1L);
 
-        assertFalse(retrievedAccounts.isEmpty());
-        assertEquals(1, retrievedAccounts.size());
-        assertEquals(testAccount, retrievedAccounts.get(0));
+        assertNotNull(accounts);
+        assertFalse(accounts.isEmpty());
+        assertEquals(1, accounts.size());
+        assertEquals("1234567890", accounts.get(0).getAccountNumber());
+
+        verify(accountRepository, times(1)).findByBankUserId(anyLong());
     }
 
     @Test
-    void testGetUserAccounts_Fails_When_UserNotFound() {
-        when(accountRepository.findByBankUserId(20L)).thenReturn(Optional.empty());
+    void testGetUserAccounts_AccountNotFound() {
+        when(accountRepository.findByBankUserId(anyLong())).thenReturn(Optional.empty());
 
-        Exception exception = assertThrows(RuntimeException.class, () -> {
-            accountService.getUserAccounts(20L);
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+            accountService.getUserAccounts(1L);
         });
 
         assertEquals("Account doesn't exists for given userId", exception.getMessage());
-
+        verify(accountRepository, times(1)).findByBankUserId(anyLong());
     }
 }
-*/

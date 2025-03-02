@@ -1,160 +1,131 @@
-/*
 package com.generic.bank.bankingapi.controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.generic.bank.bankingapi.bankapienum.Role;
 import com.generic.bank.bankingapi.dto.CreateAccountRequest;
 import com.generic.bank.bankingapi.model.BankAccount;
 import com.generic.bank.bankingapi.model.BankUser;
 import com.generic.bank.bankingapi.service.AccountService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.http.MediaType;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.test.web.servlet.MockMvc;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
+import org.springframework.http.ResponseEntity;
 
-import java.util.Arrays;
 import java.util.List;
 
-import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
+import static org.springframework.http.HttpStatus.*;
 
-@WebMvcTest(AccountController.class)
-@ExtendWith(MockitoExtension.class)
-public class AccountControllerTest {
+class AccountControllerTest {
 
-    @Autowired
-    private MockMvc mockMvc;
-
-    @MockitoBean
+    @Mock
     private AccountService accountService;
 
     @InjectMocks
     private AccountController accountController;
 
-    private ObjectMapper objectMapper;
-
-
-    private BankAccount account;
-
     @BeforeEach
     void setUp() {
-        objectMapper = new ObjectMapper();
-        account = new BankAccount();
-        account.setAccountId(1L);
-        BankUser user = new BankUser();
-        user.setUserId(1L);
-        user.setUsername("Santiago Bernabou");
-        account.setUser(user);
-        account.setBalance(1000.0);
+        MockitoAnnotations.openMocks(this);
     }
 
     @Test
-    void testCreateAccount() throws Exception {
-        CreateAccountRequest request = new CreateAccountRequest(1L, 1000.0);
-        when(accountService.createAccount(1L, 1000.0)).thenReturn(account);
+    void createAccount_Success() {
+        CreateAccountRequest request = new CreateAccountRequest(1L, "SAVINGS",100.0);
+        BankUser  bankUser = new BankUser();
+        bankUser.setUserId(1L);
+        bankUser.setRole(Role.USER);
+        BankAccount mockAccount = new BankAccount(1L,bankUser, "12345" ,"SAVINGS", 100.0);
 
-        mockMvc.perform(post("/accounts/create")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.accountId").value(1))
-                .andExpect(jsonPath("$.user.userId").value(1))
-                .andExpect(jsonPath("$.balance").value(1000.0));
-    }
+        when(accountService.createAccount(1L, 100.0, "SAVINGS")).thenReturn(mockAccount);
 
+        ResponseEntity<?> response = accountController.createAccount(request);
 
-    @Test
-    void testCreateAccount_NullUserId_ShouldReturnBadRequest() throws Exception {
-        CreateAccountRequest request = new CreateAccountRequest(null, 500.0);
-
-        mockMvc.perform(post("/accounts/create")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isBadRequest())
-                .andExpect(content().string("User ID cannot be null"));
+        assertEquals(OK, response.getStatusCode());
+        assertEquals(mockAccount, response.getBody());
     }
 
     @Test
-    void testCreateAccount_NegativeDeposit_ShouldReturnBadRequest() throws Exception {
-        CreateAccountRequest request = new CreateAccountRequest(1L, -100.0);
+    void createAccount_InvalidUserId() {
+        CreateAccountRequest request = new CreateAccountRequest(null, "SAVINGS",100.0);
 
-        mockMvc.perform(post("/accounts/create")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isBadRequest())
-                .andExpect(content().string("Initial deposit cannot be negative"));
+        ResponseEntity<?> response = accountController.createAccount(request);
+
+        assertEquals(BAD_REQUEST, response.getStatusCode());
+        assertEquals("User ID cannot be null", response.getBody());
     }
 
     @Test
-    void testCreateAccount_UserNotFound_ShouldReturnNotFound() throws Exception {
-        CreateAccountRequest request = new CreateAccountRequest(20L, 1000.0);
+    void createAccount_NegativeDeposit() {
+        CreateAccountRequest request = new CreateAccountRequest(1L,  "SAVINGS",-10.0);
 
-        when(accountService.createAccount(20L, 1000.0))
-                .thenThrow(new RuntimeException("User not found"));
+        ResponseEntity<?> response = accountController.createAccount(request);
 
-        mockMvc.perform(post("/accounts/create")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isNotFound())
-                .andExpect(content().string("User not found"));
-    }
-
-
-    @Test
-    void testGetBalance() throws Exception {
-        when(accountService.getBalance(1L)).thenReturn(1000.0);
-
-        mockMvc.perform(get("/accounts/1/balance"))
-                .andExpect(status().isOk())
-                .andExpect(content().string("1000.0"));
+        assertEquals(BAD_REQUEST, response.getStatusCode());
+        assertEquals("Initial deposit cannot be negative", response.getBody());
     }
 
     @Test
-    void testGetBalance_Invalid_AccountId_ShouldReturnBadRequest() throws Exception {
-        mockMvc.perform(get("/accounts/-1/balance"))
-                .andExpect(status().isBadRequest())
-                .andExpect(content().string("Account ID cannot be null or invalid"));
+    void createAccount_UserNotFound() {
+        CreateAccountRequest request = new CreateAccountRequest(1L, "SAVINGS", 100.0);
+
+        when(accountService.createAccount(1L, 100.0, "SAVINGS")).thenThrow(new RuntimeException("User not found"));
+
+        ResponseEntity<?> response = accountController.createAccount(request);
+
+        assertEquals(NOT_FOUND, response.getStatusCode());
+        assertEquals("User not found", response.getBody());
     }
 
     @Test
-    void testGetBalance_AccountNotFound_ShouldReturnNotFound() throws Exception {
+    void getBalance_Success() {
+        when(accountService.getBalance("12345")).thenReturn(500.0);
 
-        when(accountService.getBalance(20L))
-                .thenThrow(new RuntimeException("Account not found"));
+        ResponseEntity<?> response = accountController.getBalance("12345");
 
-        mockMvc.perform(get("/accounts/20/balance"))
-                .andExpect(status().isNotFound())
-                .andExpect(content().string("Account not found"));
+        assertEquals(OK, response.getStatusCode());
+        assertEquals(500.0, response.getBody());
     }
 
     @Test
-    void testGetUserAccounts_Success() throws Exception {
-        List<BankAccount> accounts = Arrays.asList(account);
-        when(accountService.getUserAccounts(1L)).thenReturn(accounts);
+    void getBalance_EmptyAccountNumber() {
+        ResponseEntity<?> response = accountController.getBalance("");
 
-        mockMvc.perform(get("/accounts/user/1"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.size()").value(1))
-                .andExpect(jsonPath("$[0].accountId").value(1))
-                .andExpect(jsonPath("$[0].user.userId").value(1))
-                .andExpect(jsonPath("$[0].balance").value(1000.0));
+        assertEquals(BAD_REQUEST, response.getStatusCode());
+        assertEquals("Account Number cannot be null or invalid", response.getBody());
     }
 
     @Test
-    void testGetUserAccounts_UserNotFound_ShouldReturnNotFound() throws Exception {
+    void getBalance_AccountNotFound() {
+        when(accountService.getBalance("12345")).thenThrow(new RuntimeException("Account not found"));
 
-        when(accountService.getUserAccounts(10L)).thenThrow(new RuntimeException("Account doesn't exists for given userId"));
+        ResponseEntity<?> response = accountController.getBalance("12345");
 
-        mockMvc.perform(get("/accounts/user/10"))
-                .andExpect(status().isNotFound())
-                .andExpect(content().string("Account doesn't exists for given userId"));
+        assertEquals(NOT_FOUND, response.getStatusCode());
+        assertEquals("Account not found", response.getBody());
+    }
+
+    @Test
+    void getUserAccounts_Success() {
+        List<BankAccount> mockAccounts = List.of(new BankAccount(1L, new BankUser(), "12345", "SAVING", 500));
+
+        when(accountService.getUserAccounts(1L)).thenReturn(mockAccounts);
+
+        ResponseEntity<?> response = accountController.getUserAccounts(1L);
+
+        assertEquals(OK, response.getStatusCode());
+        assertEquals(mockAccounts, response.getBody());
+    }
+
+    @Test
+    void getUserAccounts_AccountNotFound() {
+        when(accountService.getUserAccounts(1L)).thenThrow(new RuntimeException("Account doesn't exist for given userId"));
+
+        ResponseEntity<?> response = accountController.getUserAccounts(1L);
+
+        assertEquals(NOT_FOUND, response.getStatusCode());
+        assertEquals("Account doesn't exists for given userId", response.getBody());
     }
 }
-*/

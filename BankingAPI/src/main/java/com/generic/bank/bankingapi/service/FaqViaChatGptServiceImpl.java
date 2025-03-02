@@ -28,21 +28,25 @@ public class FaqViaChatGptServiceImpl implements FaqViaChatGptService {
 
     @Override
     public String askMe(String messageText) {
-        ChatGptRequest request = new ChatGptRequest(
-                model,
-                Collections.singletonList(new com.generic.bank.bankingapi.model.Message("user", messageText)),
-                200,
-                0.7
-        );
-        HttpEntity<ChatGptRequest> requestEntity = new HttpEntity<>(request);
+       ChatGptResponse response;
+       try {
+           ChatGptRequest request = new ChatGptRequest(
+                   model,
+                   Collections.singletonList(new com.generic.bank.bankingapi.model.Message("user", messageText)),
+                   200,
+                   0.7
+           );
+           HttpEntity<ChatGptRequest> requestEntity = new HttpEntity<>(request);
 
-        ChatGptResponse response = restTemplate.exchange(
-                apiUrl,
-                HttpMethod.POST,
-                requestEntity,
-                ChatGptResponse.class
-        ).getBody();
-
+           response = restTemplate.exchange(
+                   apiUrl,
+                   HttpMethod.POST,
+                   requestEntity,
+                   ChatGptResponse.class
+           ).getBody();
+       } catch (Exception e) {
+           throw new RuntimeException("ChatGPT Api Call Failed",e);
+       }
         if (response != null && response.getChoices() != null && !response.getChoices().isEmpty()) {
             log.info("Successfully completed your request via chatgpt api");
             return response.getChoices().get(0).getMessage().getContent();

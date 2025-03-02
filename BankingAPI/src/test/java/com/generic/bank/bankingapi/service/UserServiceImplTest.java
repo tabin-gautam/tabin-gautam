@@ -1,4 +1,3 @@
-/*
 package com.generic.bank.bankingapi.service;
 
 import com.generic.bank.bankingapi.bankapienum.Role;
@@ -9,56 +8,79 @@ import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
-
-import java.util.Arrays;
-import java.util.List;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-class UserServiceImplTest {
+import java.util.Arrays;
+import java.util.List;
 
-    @InjectMocks
-    private UserServiceImpl userService;
+class UserServiceImplTest {
 
     @Mock
     private UserRepository userRepository;
 
-    private BankUser user;
+    @Mock
+    private PasswordEncoder passwordEncoder;
+
+    @InjectMocks
+    private UserServiceImpl userService;
+
+    private BankUser mockUser;
 
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        user = new BankUser(1L, "Santiago Bernabou","Santiago@Bernabou", "pswd", Role.USER);
+        mockUser = new BankUser();
+        mockUser.setUsername("testUser");
+        mockUser.setName("Test User");
+        mockUser.setRole(Role.USER);
+        mockUser.setPassword("encodedPassword");
     }
 
     @Test
-    void testCreateUser() {
-        when(userRepository.save(any(BankUser.class))).thenReturn(user);
-        BankUser createdUser = userService.createUser("Santiago Bernabou", "Santiago@Bernabou", "pswd");
+    void createUser_Success() {
+        when(passwordEncoder.encode("password123")).thenReturn("encodedPassword");
+        when(userRepository.save(any(BankUser.class))).thenReturn(mockUser);
+
+        BankUser createdUser = userService.createUser("Test User", "testUser", "password123", Role.USER);
 
         assertNotNull(createdUser);
-        assertEquals("Santiago Bernabou", createdUser.getUsername());
-        assertEquals(1L, createdUser.getUserId());
+        assertEquals("testUser", createdUser.getUsername());
+        assertEquals("Test User", createdUser.getName());
+        assertEquals(Role.USER, createdUser.getRole());
+        assertEquals("encodedPassword", createdUser.getPassword());
+
+        verify(passwordEncoder).encode("password123");
+        verify(userRepository).save(any(BankUser.class));
     }
 
     @Test
-    void testGetAllUsers() {
-        when(userRepository.findAll()).thenReturn(Arrays.asList(user));
-        List<BankUser> users = userService.getAllUsers();
+    void getAllUsers_Success() {
+        BankUser user1 = new BankUser();
+        user1.setUsername("user1");
+        user1.setName("User One");
+        user1.setRole(Role.USER);
+        user1.setPassword("password1");
 
-        assertNotNull(users);
-        assertEquals(1, users.size());
-        assertEquals("Santiago Bernabou", users.get(0).getUsername());
-    }
+        BankUser user2 = new BankUser();
+        user2.setUsername("user2");
+        user2.setName("User Two");
+        user2.setRole(Role.USER);
+        user2.setPassword("password2");
 
-    @Test
-    void testCreateUser_UserAlreadyExists() {
-        when(userRepository.save(any(BankUser.class))).thenReturn(user);
-        BankUser createdUser = userService.createUser("Santiago Bernabou","Santiago@Bernabou", "pswd");
-        assertEquals("Santiago Bernabou", createdUser.getUsername());
-        assertEquals(1L, createdUser.getUserId());
-        verify(userRepository, times(1)).save(any(BankUser.class));
+        List<BankUser> users = Arrays.asList(user1, user2);
+
+        when(userRepository.findAll()).thenReturn(users);
+
+        List<BankUser> allUsers = userService.getAllUsers();
+
+        assertNotNull(allUsers);
+        assertEquals(2, allUsers.size());
+        assertEquals("user1", allUsers.get(0).getUsername());
+        assertEquals("user2", allUsers.get(1).getUsername());
+
+        verify(userRepository).findAll();
     }
 }
-*/
